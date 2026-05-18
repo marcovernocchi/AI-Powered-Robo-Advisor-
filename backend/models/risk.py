@@ -1,32 +1,103 @@
 from pydantic import BaseModel, Field
 
 
+class SectionA(BaseModel):
+    a1: int = Field(..., ge=1, le=4)
+    a2: int = Field(..., ge=1, le=4)
+    a3: int = Field(..., ge=1, le=4)
+    a4: int = Field(..., ge=1, le=4)
+    a5: int = Field(..., ge=1, le=4)
+    a6: int = Field(..., ge=1, le=4)
+    a7: int = Field(..., ge=1, le=4)
+    a8: int = Field(..., ge=1, le=4)
+
+
+class SectionB(BaseModel):
+    b1: int = Field(..., ge=1, le=4)
+    b2: int = Field(..., ge=1, le=4)
+    b3: int = Field(..., ge=1, le=4)
+    b4: str = ""
+
+
+class SectionC(BaseModel):
+    c1: int = Field(..., ge=1, le=4)
+    c2: int = Field(..., ge=1, le=4)
+    c3: int = Field(..., ge=1, le=4)
+    c4: int = Field(..., ge=1, le=4)
+    c5: int = Field(..., ge=1, le=4)
+    c6: int = Field(..., ge=1, le=4)
+
+
+class SectionD(BaseModel):
+    d11: bool
+    d12: bool
+    d13: bool
+    d14: bool
+    d15: bool
+
+
 class RiskQuestion(BaseModel):
-    age: int = Field(..., ge=18, le=100)
-    investment_horizon: int = Field(..., ge=1, le=50, description="Years you plan to stay invested")
-    income_stability: int = Field(..., ge=1, le=5, description="1=very unstable, 5=very stable")
-    loss_tolerance: int = Field(..., ge=1, le=5, description="1=sell everything, 5=buy more on dips")
-    investment_experience: int = Field(..., ge=1, le=5, description="1=beginner, 5=expert")
+    section_a: SectionA
+    section_b: SectionB
+    section_c: SectionC
+    section_d: SectionD
 
 
-def calculate_risk_score(q: RiskQuestion) -> int:
-    """Returns integer 1–10: 1–3 conservative, 4–6 moderate, 7–10 aggressive."""
-    age_score = max(1.0, 10.0 - (q.age - 20) / 5.0)
-    horizon_score = min(10.0, q.investment_horizon / 3.0)
+# Upper bound of each risk band (used by prudence rule)
+_BAND_MAX = {1: 26, 2: 42, 3: 56, 4: 68}
 
-    raw = (
-        age_score * 0.20
-        + horizon_score * 0.30
-        + q.income_stability * 2.0 * 0.15
-        + q.loss_tolerance * 2.0 * 0.25
-        + q.investment_experience * 2.0 * 0.10
-    )
-    return max(1, min(10, round(raw)))
+
+def _section_band(score: int, max_score: int) -> int:
+    """Maps a section score to band 1 (Low) – 4 (High), proportional to the 68-pt scale."""
+    pct = score / max_score
+    if pct <= 26 / 68:
+        return 1
+    elif pct <= 42 / 68:
+        return 2
+    elif pct <= 56 / 68:
+        return 3
+    return 4
+
+
+def knowledge_level(d: SectionD) -> str:
+    correct = sum([d.d11, d.d12, d.d13, d.d14, d.d15])
+    if correct <= 2:
+        return "none"
+    elif correct <= 4:
+        return "basic"
+    return "expert"
+
+
+def calculate_risk_score(q: RiskQuestion) -> tuple[int, str]:
+    """Returns (total_score 8–68, knowledge_level).
+
+    Prudence rule: if Section A and Section C implied bands diverge by more than
+    one band, the total is capped at the upper bound of the more conservative band.
+    """
+    score_a = (q.section_a.a1 + q.section_a.a2 + q.section_a.a3 + q.section_a.a4
+               + q.section_a.a5 + q.section_a.a6 + q.section_a.a7 + q.section_a.a8)
+    score_b = q.section_b.b1 + q.section_b.b2 + q.section_b.b3
+    score_c = (q.section_c.c1 + q.section_c.c2 + q.section_c.c3
+               + q.section_c.c4 + q.section_c.c5 + q.section_c.c6)
+
+    band_a = _section_band(score_a, 32)
+    band_c = _section_band(score_c, 24)
+
+    total = score_a + score_b + score_c
+
+    if abs(band_a - band_c) > 1:
+        conservative_band = min(band_a, band_c)
+        total = min(total, _BAND_MAX[conservative_band])
+
+    kl = knowledge_level(q.section_d)
+    return total, kl
 
 
 def risk_label(score: int) -> str:
-    if score <= 3:
-        return "Conservative"
-    elif score <= 6:
-        return "Moderate"
-    return "Aggressive"
+    if score <= 26:
+        return "Low (Defensive)"
+    elif score <= 42:
+        return "Medium (Conservative)"
+    elif score <= 56:
+        return "Medium-High (Balanced)"
+    return "High (Aggressive)"

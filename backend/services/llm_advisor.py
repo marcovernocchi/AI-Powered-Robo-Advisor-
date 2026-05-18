@@ -12,11 +12,13 @@ def _get_client() -> Groq:
 
 
 def _risk_label(score: int) -> str:
-    if score <= 3:
-        return "conservative"
-    elif score <= 6:
-        return "moderate"
-    return "aggressive"
+    if score <= 26:
+        return "defensive (low risk)"
+    elif score <= 42:
+        return "conservative (medium risk)"
+    elif score <= 56:
+        return "balanced (medium-high risk)"
+    return "aggressive (high risk)"
 
 
 def generate_advice(portfolio_data: dict, risk_score: int) -> str:
@@ -33,7 +35,7 @@ def generate_advice(portfolio_data: dict, risk_score: int) -> str:
     prompt = f"""You are a professional financial advisor providing personalized investment advice.
 
 User profile:
-- Risk tolerance: {profile} (score {risk_score}/10)
+- Risk tolerance: {profile} (score {risk_score}/68)
 - Current portfolio:
 {portfolio_str}
 

@@ -42,7 +42,7 @@ def set_risk_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    score = calculate_risk_score(answers)
+    score, kl = calculate_risk_score(answers)
     current_user.risk_score = score
     db.commit()
-    return {"risk_score": score, "risk_profile": risk_label(score)}
+    return {"risk_score": score, "risk_profile": risk_label(score), "knowledge_level": kl}
